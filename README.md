@@ -1,6 +1,8 @@
 # superfluid-restake
 
-Similar to REStake, but puts tokens in superfluid staking.
+Similar to [REStake](https://github.com/eco-stake/restake), but puts tokens in superfluid staking.
+
+Before using, examine [`superfluid-restake.sh`](./superfluid-restake.sh) and make necessary changes based on your specific situation.
 
 ## Disclaimer
 
