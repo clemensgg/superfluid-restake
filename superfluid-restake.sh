@@ -17,7 +17,7 @@ echo "validator account is $validator"
 
 duration="1209600s" # 14 days in seconds
 
-txflags="--gas auto --gas-adjustment 1.4 --gas-prices 0.0001uosmo --chain-id osmosis-1 --sign-mode amino-json --output json --node https://rpc.osmosis.zone:443"
+txflags="--gas auto --gas-adjustment 1.4 --gas-prices 0.0001uosmo --chain-id osmosis-1 --output json --node https://rpc.osmosis.zone:443"
 
 grant() {
   types=(
@@ -56,6 +56,11 @@ restake() {
     echo "uosmo balance is $balance"
   fi
 
+  echo "🤖 querying staking reward..."
+  rewardDec=$(osmosisd q distribution rewards $granter $validator --output json | jq -r '.rewards[] | select(.denom=="uosmo") | .amount')
+  reward=${rewardDec%.*}
+  echo "claimable staking reward is $reward uosmo"
+
   echo "🤖 querying pool #$id..."
   pool=$(osmosisd q gamm pool 678 --output json | jq -r '.pool')
   amount=$(echo $pool | jq -r '.poolAssets[] | select(.token.denom=="uosmo") | .token.amount')
@@ -67,23 +72,27 @@ restake() {
     echo "pool contains $amount uosmo and total shares $totalShares"
   fi
 
+  available=$(( $balance + $reward ))
+
   echo "🤖 computing deposit amount..."
-  deposit=$(( $balance * 99 / 100 )) # deposit 99% of the available balance
+  deposit=$(( $available * 99 / 100 )) # deposit 99% of the available balance
   shares=$(echo "$totalShares * $deposit / $amount / 2" | bc)
   echo "deposit max $deposit uosmo, expecting $shares shares"
 
   echo "🤖 composing tx..."
-  osmosisd tx gamm join-swap-share-amount-out uosmo $balance $shares --pool-id $id --from $granter --generate-only > tx.json
+  osmosisd tx distribution withdraw-rewards $validator --from $granter --generate-only > tx.json
+  msgs=$(osmosisd tx gamm join-swap-share-amount-out uosmo $available $shares --pool-id $id --from $granter --generate-only | jq -r '.body.messages')
+  jq ".body.messages += $msgs" tx.json | sponge tx.json
   msgs=$(osmosisd tx lockup lock-tokens ${shares}gamm/pool/${id} --duration $duration --from $granter --generate-only | jq -r '.body.messages')
   jq ".body.messages += $msgs" tx.json | sponge tx.json
 
   echo "🤖 signing and broadcasting tx..."
-  echo $password | osmosisd tx authz exec tx.json --from $grantee $txflags -y
+  echo $password | osmosisd tx authz exec tx.json --from $grantee --gas auto --gas-adjustment 1.4 --gas-prices 0.0001uosmo -y
 
   rm tx.json
 }
 
 # NOTE: ~90% chance this command will fail due to random errors related to ledger
-grant
+# grant
 
 restake 678 # axlUSDC-OSMO pool
