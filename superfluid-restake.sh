@@ -62,7 +62,7 @@ restake() {
   echo "claimable staking reward is $reward uosmo"
 
   echo "🤖 querying pool #$id..."
-  pool=$(osmosisd q gamm pool 678 --output json | jq -r '.pool')
+  pool=$(osmosisd q gamm pool $id --output json | jq -r '.pool')
   amount=$(echo $pool | jq -r '.poolAssets[] | select(.token.denom=="uosmo") | .token.amount')
   totalShares=$(echo $pool | jq -r '.totalShares.amount')
   if [ -z amount ]; then
